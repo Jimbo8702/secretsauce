@@ -1,0 +1,3 @@
+DROP DATABASE IF EXISTS roo_db;
+
+CREATE DATABASE roo_db;
