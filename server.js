@@ -1,32 +1,43 @@
-const express = require("express");
-const { ApolloServer } = require("apollo-server-express");
-const { typeDefs, resolvers } = require("./schemas");
+import { ApolloServer } from "apollo-server-express";
+import {
+  ApolloServerPluginDrainHttpServer,
+  ApolloServerPluginLandingPageLocalDefault,
+} from "apollo-server-core";
+import express from "express";
+import http from "http";
+import { typeDefs, resolvers } from "./schemas/index.js";
 
-const PORT = 3001;
-const app = express();
-const sequelize = require("./config/connection.js");
+import { sequelize } from "./config/connection.js";
+async function startApolloServer(typeDefs, resolvers) {
+  const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  const httpServer = http.createServer(app);
 
-const httpServer = require("http").createServer(app);
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-});
-
-server.applyMiddleware({
-  app,
-  path: "/graphql",
-  cors: {
-    credentials: false,
-    origin: process.env.DOMAIN_FULL + ":" + process.env.PORT || "3001",
-  },
-});
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-sequelize.sync({ force: true }).then(() => {
-  httpServer.listen(PORT, () => {
-    console.log(`API server running on port ${PORT}!`);
-    console.log(`Use GraphQL at http://localhost:${PORT}${server.graphqlPath}`);
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+    csrfPrevention: true,
+    cache: "bounded",
+    plugins: [
+      ApolloServerPluginDrainHttpServer({ httpServer }),
+      ApolloServerPluginLandingPageLocalDefault({ embed: true }),
+    ],
   });
+
+  await server.start();
+  server.applyMiddleware({
+    app,
+    path: "/graphql",
+    cors: {
+      credentials: false,
+      origin: process.env.DOMAIN_FULL + ":" + process.env.PORT || "3001",
+    },
+  });
+
+  httpServer.listen({ port: 4000 });
+  console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`);
+}
+sequelize.sync({ force: true }).then(async () => {
+  startApolloServer(typeDefs, resolvers);
 });
